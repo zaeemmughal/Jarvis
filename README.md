@@ -160,5 +160,3 @@ transcript and add them to the lists at the top of that file.
 - **Voice sounds robotic**: install `edge-tts` (needs internet).
 - Logs are written to `logs/jarvis.log`.
 
-## Exhibition tips
-Use a headset mic, keep a phone hotspot ready, press F11, and open with "Jarvis, run the demo".

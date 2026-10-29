@@ -1,0 +1,3 @@
+# Core - both install on Python 3.14 without compiling anything (no PyAudio, no pyautogui)
+SpeechRecognition>=3.10
+sounddevice>=0.4.6

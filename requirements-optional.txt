@@ -1,0 +1,9 @@
+# Recommended: natural British neural voice (needs internet). Without it Jarvis uses the Windows voice.
+edge-tts>=6.1
+# Optional: real CPU/RAM/battery readings on every OS (Windows works without it)
+psutil>=5.9
+# Optional: offline speech recognition fallback (also download a model, see README)
+vosk>=0.3.45
+# Optional: tray icon so Jarvis can run with no window at all (otherwise hiding just minimises to the taskbar)
+pystray>=0.19
+pillow>=10.0

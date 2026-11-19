@@ -84,8 +84,8 @@ class Skills(unittest.TestCase):
     def test_notes_and_name(self):
         self.assertEqual(self.r("take a note buy milk"), "Noted.")
         self.assertIn("buy milk", self.r("read my notes"))
-        self.assertIn("Zaeem", self.r("my name is zaeem"))
-        self.assertEqual(self.r("who am i"), "You are Zaeem.")
+        self.assertIn("Hasnat", self.r("my name is hasnat"))
+        self.assertEqual(self.r("who am i"), "You are Hasnat.")
 
     def test_face_and_misc(self):
         self.assertEqual(self.r("look left"), "Looking left.")
@@ -316,8 +316,8 @@ class Misc(unittest.TestCase):
         self.assertEqual(s, "Paris is big. It is old.")
 
     def test_memory_persist(self):
-        d = tempfile.mkdtemp(); Memory(d).set_name("Zaeem")
-        self.assertEqual(Memory(d).name, "Zaeem")
+        d = tempfile.mkdtemp(); Memory(d).set_name("Hasnat")
+        self.assertEqual(Memory(d).name, "Hasnat")
 
     def test_mood_tag(self):
         self.assertEqual(brain_mod.split_mood("[Surprised] Wow."), ("surprised", "Wow."))

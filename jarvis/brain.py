@@ -15,6 +15,7 @@ from datetime import datetime
 from . import browser, compat, net, services
 from .config import Config
 from .memory import Memory
+from . import urdu
 
 log = logging.getLogger("jarvis.brain")
 
@@ -40,7 +41,7 @@ def split_mood(text: str) -> tuple[str, str]:
 
 
 _ABBR = {"mr", "mrs", "ms", "dr", "st", "vs", "etc", "eg", "ie", "no", "prof", "jr", "sr", "inc", "ltd", "approx"}
-_SENT_END = re.compile(r"([.!?]+[\"')\]]*)(\s+)")
+_SENT_END = re.compile(r"([.!?\u06d4\u061f]+[\"')\]]*)(\s+)")
 
 
 def pop_sentences(buf: str, final: bool = False, min_len: int = 14, max_len: int = 170) -> tuple[list[str], str]:
@@ -156,6 +157,12 @@ class Brain:
         return any(p.key and self.cfg.ai_provider in ("auto", p.name) for p in self.providers)
 
     def _ready(self) -> list:
+        try:
+            from . import modes
+            if modes.is_local():                      # LOCAL mode: no AI at all, commands and look-ups only
+                return []
+        except Exception:
+            pass
         return [p for p in self.providers if p.ready(self.cfg.ai_provider, self.cfg.force_offline)]
 
     @property
@@ -284,7 +291,41 @@ class Brain:
             "never answer such a request with encyclopedia facts or 'according to Wikipedia'. Begin every reply with "
             "exactly one mood tag from: [neutral] [happy] [sad] [surprised] [angry]. The current date and time is %s.%s"
             % (who or "the user", who or "sir", datetime.now().strftime("%A %d %B %Y, %I:%M %p"),
-               (" What the user has been doing on the PC: " + self._context) if self._context else ""))
+               (" What the user has been doing on the PC: " + self._context) if self._context else "")
+            + (urdu.BRAIN_NOTE if urdu.is_urdu() else ""))
+
+    def complete(self, prompt: str, system: str = "", max_tokens: int = 600, timeout: float = 20) -> str | None:
+        """One non-streaming completion (used by the background agents). Same provider ranking and failover as ask().
+        Returns None when there is no key, LOCAL mode is on, or every provider is busy - callers keep a no-LLM fallback."""
+        msgs = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}]
+        for p in self._ready():
+            try:
+                out = p.chat(msgs, 0.5, max_tokens, timeout)
+                out = re.sub(r"^\s*\[(?:neutral|happy|sad|surprised|angry|thinking)\]\s*", "", out or "").strip()
+                if out:
+                    return out
+            except net.NetError as e:
+                p.error(e)
+                log.warning("complete(): %s error: %s", p.name, nice_error(e))
+            except Exception:
+                log.exception("complete() failure")
+        return None
+
+    def translate_urdu(self, text: str) -> str | None:
+        """English -> Urdu for a short reply (used by Urdu mode when no ready-made phrase exists)."""
+        if not self.llm_ready:
+            return None
+        for p in self._ready():
+            try:
+                out = p.chat([{"role": "system", "content": urdu.TRANSLATE_SYSTEM}, {"role": "user", "content": text}], 0, 300, 12)
+                out = re.sub(r"^\s*\[(?:neutral|happy|sad|surprised|angry)\]\s*", "", out or "").strip().strip('"')
+                if out:
+                    return out
+            except net.NetError as e:
+                p.error(e)
+            except Exception:
+                log.exception("translate failure")
+        return None
 
     # ---- command planner ------------------------------------------------------------
     def plan(self, utterance: str, context: str = "") -> dict | None:

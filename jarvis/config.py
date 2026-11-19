@@ -3,16 +3,42 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import sys
 from dataclasses import dataclass
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FROZEN = bool(getattr(sys, "frozen", False))
+# APP_DIR = read-only install/bundle folder. ROOT = writable folder for .env, data/, logs/.
+if FROZEN:                                      # installed .exe (PyInstaller): keep user files out of Program Files
+    APP_DIR = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    ROOT = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "Jarvis")
+    os.makedirs(ROOT, exist_ok=True)
+    _example = os.path.join(APP_DIR, ".env.example")
+    _env = os.path.join(ROOT, ".env")
+    if os.path.isfile(_example) and not os.path.isfile(_env):   # first run: create an editable .env
+        try:
+            shutil.copyfile(_example, _env)
+        except OSError:
+            pass
+else:
+    ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    APP_DIR = ROOT
 DATA_DIR = os.path.join(ROOT, "data")
 LOG_DIR = os.path.join(ROOT, "logs")
+REPORTS_DIR = os.path.join(ROOT, "reports")      # research / notes / agent reports (.docx, .pdf); also writable in the frozen .exe
 
 
 def load_env(path: str | None = None) -> None:
     """Tiny .env reader (no python-dotenv needed). Real environment variables win."""
-    path = path or os.path.join(ROOT, ".env")
+    if path is None:
+        _load_env_file(os.path.join(ROOT, ".env"))                      # per-user settings win
+        if FROZEN:                                                      # keys bundled by the installer = defaults
+            _load_env_file(os.path.join(os.path.dirname(sys.executable), ".env"))
+        return
+    _load_env_file(path)
+
+
+def _load_env_file(path: str) -> None:
     if not os.path.isfile(path):
         return
     with open(path, encoding="utf-8-sig") as fh:
@@ -28,7 +54,9 @@ def load_env(path: str | None = None) -> None:
                 val = re.split(r"\s+#", val, maxsplit=1)[0].strip()
                 if val.startswith("#"):
                     val = ""
-            os.environ.setdefault(key.strip(), val)
+            k = key.strip()
+            if k not in os.environ or (val and not os.environ[k]):   # real env vars / earlier files win, but an empty value never blocks a later file
+                os.environ[k] = val
 
 
 def _s(name: str, default: str = "") -> str:

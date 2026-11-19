@@ -25,6 +25,7 @@ VK = {
 }
 for _i in range(1, 13):
     VK["f%d" % _i] = 0x6F + _i
+VK.update({"slash": 0xBF, "period": 0xBE, "comma": 0xBC})
 EXTENDED = set(range(0x21, 0x29)) | {0x2D, 0x2E, 0x5B}
 
 KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE = 0x1, 0x2, 0x4
@@ -186,3 +187,86 @@ def chime(freq: int = 880, ms: int = 70) -> None:
         winsound.Beep(freq, ms)
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------- finding / focusing windows
+def _exe_of(hwnd) -> str:
+    from ctypes import wintypes
+    u32, k32 = ctypes.windll.user32, ctypes.windll.kernel32
+    k32.OpenProcess.restype = wintypes.HANDLE
+    k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
+                                               ctypes.POINTER(wintypes.DWORD)]
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    u32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    pid = wintypes.DWORD()
+    u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    h = k32.OpenProcess(0x1000, False, pid.value)
+    if not h:
+        return ""
+    try:
+        size, path = wintypes.DWORD(520), ctypes.create_unicode_buffer(520)
+        if k32.QueryFullProcessImageNameW(h, 0, path, ctypes.byref(size)):
+            return os.path.basename(path.value)
+    finally:
+        k32.CloseHandle(h)
+    return ""
+
+
+def find_windows(substr: str):
+    """Visible top-level windows whose title contains `substr` (case-insensitive), topmost first.
+    Returns [(hwnd, title, exe_name), ...]. Windows only."""
+    if not IS_WIN:
+        return []
+    from ctypes import wintypes
+    u32 = ctypes.windll.user32
+    u32.IsWindowVisible.argtypes = [wintypes.HWND]
+    u32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    u32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    found, needle = [], substr.lower()
+
+    def cb(hwnd, _):
+        try:
+            if u32.IsWindowVisible(hwnd):
+                n = u32.GetWindowTextLengthW(hwnd)
+                if n > 0:
+                    buf = ctypes.create_unicode_buffer(n + 1)
+                    u32.GetWindowTextW(hwnd, buf, n + 1)
+                    if needle in buf.value.lower():
+                        found.append((hwnd, buf.value, _exe_of(hwnd).lower()))
+        except Exception:
+            pass
+        return True
+    u32.EnumWindows(proc(cb), 0)
+    return found
+
+
+def focus_window(hwnd) -> bool:
+    """Bring a window to the front (restoring it if minimised). True if it ended up in the foreground."""
+    if not IS_WIN:
+        return False
+    try:
+        from ctypes import wintypes
+        u32, k32 = ctypes.windll.user32, ctypes.windll.kernel32
+        for fn in (u32.IsIconic, u32.BringWindowToTop, u32.SetForegroundWindow):
+            fn.argtypes = [wintypes.HWND]
+        u32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+        u32.GetForegroundWindow.restype = wintypes.HWND
+        u32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        u32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
+        if u32.IsIconic(hwnd):
+            u32.ShowWindow(hwnd, 9)                                   # SW_RESTORE
+        fg = u32.GetForegroundWindow()
+        me, fg_tid = k32.GetCurrentThreadId(), u32.GetWindowThreadProcessId(fg, None)
+        attached = bool(fg_tid and fg_tid != me and u32.AttachThreadInput(me, fg_tid, True))
+        try:
+            u32.BringWindowToTop(hwnd)
+            u32.SetForegroundWindow(hwnd)
+        finally:
+            if attached:
+                u32.AttachThreadInput(me, fg_tid, False)
+        time.sleep(0.25)
+        return u32.GetForegroundWindow() == hwnd
+    except Exception:
+        return False

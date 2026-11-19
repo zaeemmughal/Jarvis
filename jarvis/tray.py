@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from . import urdu
 
 log = logging.getLogger("jarvis.tray")
 
@@ -42,6 +43,11 @@ class Tray:
                 pystray.MenuItem("Microphone on", lambda icon, item: app.toggle_mic(),
                                  checked=lambda item: app.mic_on),
                 pystray.MenuItem("Stop talking", lambda icon, item: app.stop_speaking()),
+                pystray.MenuItem("Language / زبان", pystray.Menu(
+                    pystray.MenuItem("English", lambda icon, item: app.set_language("en"),
+                                     checked=lambda item: not urdu.is_urdu(), radio=True),
+                    pystray.MenuItem("اردو (Urdu)", lambda icon, item: app.set_language("ur"),
+                                     checked=lambda item: urdu.is_urdu(), radio=True))),
                 pystray.MenuItem("Quit Jarvis", lambda icon, item: app.quit()))
             self.icon = pystray.Icon("jarvis", img, "J.A.R.V.I.S - listening", menu)
             threading.Thread(target=self.icon.run, daemon=True, name="tray").start()

@@ -7,7 +7,7 @@ import queue
 import threading
 import time
 
-from . import browser, net, services, skills
+from . import browser, net, newsdesk, services, skills, urdu
 from .audio import Listener
 from .brain import Brain
 from .config import Config, LOG_DIR
@@ -264,7 +264,18 @@ class Jarvis:
         if mood in ("happy", "sad", "angry", "surprised"):
             self.face.mood(mood, 6)
 
+    def set_language(self, mode: str):
+        """Switch between English and Urdu (tray menu / LANG button / voice command)."""
+        urdu.set_mode(mode)
+        msg = "ٹھیک ہے، اب میں اردو میں بات کروں گا۔" if urdu.is_urdu() else "Switched to English."
+        self.hud_post("log", "sys", "Language: %s" % ("Urdu" if urdu.is_urdu() else "English"))
+        self.respond(msg)
+
+    def toggle_language(self):
+        self.set_language("en" if urdu.is_urdu() else "ur")
+
     def respond(self, reply: str, sources=None):
+        reply = urdu.localize(reply, self.brain.translate_urdu)      # Urdu mode: English skill replies are spoken in Urdu
         self.last_reply = reply
         self.hud_post("log", "jarvis", reply)
         for title, url in (sources or []):
@@ -379,6 +390,8 @@ class Jarvis:
             self.hud_post("log", "sys", "Tip: add GROQ_API_KEY (console.groq.com) to .env for smart answers.")
         log_("Websites open in: %s." % browser.name())
         self.respond(line)
+        from . import briefing
+        briefing.start_at_boot(self)               # weather + speed + headlines, on a worker thread (JARVIS_STARTUP_BRIEFING=off disables)
 
     # ------------------------------------------------------------------ run
     def start_threads(self):
@@ -386,6 +399,7 @@ class Jarvis:
         for fn in (self._worker, self._stats_loop, self._net_loop, self._boot):
             threading.Thread(target=fn, daemon=True).start()
         self.listener.start()
+        newsdesk.start_daily(self)                 # optional: JARVIS_DAILY_NEWS=08:00 reads the news briefing every day
 
     def run(self):
         self.start_threads()

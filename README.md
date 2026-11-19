@@ -97,9 +97,20 @@ The text box at the bottom always works, so you have a backup if the room is too
 - "Set a timer for 10 minutes" / "Remind me to call Ali in 20 minutes" / "Take a note buy milk" / "Read my notes"
 - "Open Chrome" / "Open Notepad" / "Type hello world" / "Volume up" / "Take a screenshot" / "Play lo-fi on YouTube"
 - "Be happy" / "Look left" / "Blink twice" / "Wink" / "Go to sleep" / "Wake up"
-- "System status" / "My name is Zaeem" / "Stop" / "Repeat that" / "Standby" / "Goodbye"
+- "System status" / "My name is Hasnat" / "Stop" / "Repeat that" / "Standby" / "Goodbye"
 
 Typing safety: move the mouse into the **top-left corner** or say "stop" to abort typing.
+
+## Features pack: briefing, agents, reports, Word files
+- **Briefing:** a few seconds after start-up Jarvis reads weather, internet speed and the top 10 headlines (`JARVIS_STARTUP_BRIEFING=off` to disable). Any time: "briefing", "briefing sunao", "aaj ka haal". (\"news briefing\" is still the old headlines-only command.)
+- **Speed check:** "speed check", "speed check karo".
+- **Notes -> Word:** "take a note ..." / "note likho ..." still saves to `data/notes.txt` and now also to `reports/Notes-<date>.docx`.
+- **Reports in the app:** "show reports", "open the scout report", "read the report". Files live in `reports/` (`%APPDATA%\\Jarvis\\reports` in the .exe).
+- **Six agents (work in the background, speak only if you did not say stop):** *scout* research, *herald* news, *voyager* trips and flights, *social* captions and hashtags, *seo* keywords, *muse* plans. Each saves a Word report and has a no-AI fallback. "make a word file" / "pdf banao" converts the last report.
+- **Smart / Local mode:** "local mode" switches the AI off (nothing is sent to any model), "smart mode" turns it back on. Saved in `data/mode.txt`.
+- **Roman Urdu:** "awaz barhao", "awaz 50 kar do", "2500 guna 18 kitne hue", "dobara bolo", "repeat the last briefing".
+- **Part B (extras2.py):** *prayer times* ("next namaz kab hai", "namaz se pehle yaad dilao"; Aladhan, free), *focus / pomodoro* ("start focus mode", "pomodoro 50 minutes", "stop focus mode"), *translate* ("translate good morning into urdu"; AI first, MyMemory as the free fallback), *currency and units* ("100 dollar kitne rupees", "convert 5 km to miles"; open.er-api.com), *to-do list* ("add task finish report", "to-do mein add karo FYP report", "mark task 2 done"; `data/todo.json`, open tasks are read in the briefing), *clipboard* ("read the clipboard", "summarize the clipboard", "save clipboard to notes"), *page summary* ("summarize this page" on Windows, "summarize <link>"), *daily journal* ("journal likho": three questions, saved as `reports/Journal-<date>.docx`, tomorrow's item is added to the to-do list).
+- New code: `features.py` (skills), `briefing.py`, `docs.py` (.docx/.pdf, no extra packages), `agents.py`, `modes.py`, `panel.py` (HUD reading panel), `extras2.py` (hook for optional extras). Tests: `tests/test_features.py`.
 
 ## Project layout
 
@@ -160,3 +171,43 @@ transcript and add them to the lists at the top of that file.
 - **Voice sounds robotic**: install `edge-tts` (needs internet).
 - Logs are written to `logs/jarvis.log`.
 
+## Exhibition tips
+Use a headset mic, keep a phone hotspot ready, press F11, and open with "Jarvis, run the demo".
+
+## WhatsApp, YouTube and more (new)
+
+**WhatsApp** (desktop app or WhatsApp Web, already logged in). Nothing is ever sent without your spoken "yes".
+- "Jarvis, open WhatsApp" -> "open chat of Ali" (or "open Ali's chat", "message Ali")
+- "type are you coming tonight" -> typed into the open chat, not sent. Say "type ..." again to add more.
+- "send" -> Jarvis reads it back: "Send this to Ali: ...? Say yes or no." -> "yes" sends, "no" cancels.
+- One go: "send a message to Ali saying I'll be late" -> opens chat, types, asks for confirmation.
+- "clear the message", "read the message", "close chat".
+- It opens the TOP search result, so say enough of the name to be unique. If Enter alone doesn't open the chat on your
+  WhatsApp version, set `JARVIS_WA_OPEN_KEYS=down,enter` in `.env`.
+
+**YouTube**: "play <song or video> [on youtube]" now opens the first real video and starts it (no results page).
+Controls (YouTube tab must be open): pause / resume, next / previous video, "skip 30 seconds", "rewind 10 seconds",
+"speed up", "slow down", "subtitles", "theater mode", "mini player", "restart the video", "mute the video",
+"fullscreen", "what is playing".
+
+**Windows / browser**: "snap window left/right", "go to tab 3", "bookmark this page", "find on page <text>".
+
+## Urdu mode and the news desk (new)
+
+**Two languages - English and Urdu.** Switch any time: say "speak Urdu" / "اردو میں بات کرو" (and "speak English" /
+"انگریزی میں بات کرو"), press the **LANG** button, or use the tray menu *Language / زبان*. The choice is remembered.
+In Urdu mode Jarvis listens in Urdu (Whisper `whisper-large-v3`), answers in Urdu script and speaks with an Urdu neural voice.
+- Commands work in Urdu: "یوٹیوب کھولو", "کروم بند کرو", "آواز بڑھاؤ", "وقت کیا ہوا ہے", "لاہور کا موسم کیسا ہے",
+  "یوٹیوب پر ... چلاؤ", "اسکرین شاٹ لو", "پانچ منٹ کا ٹائمر لگاؤ", "حسنات کو واٹس ایپ پر میسج کرو کہ ..." (still asks for
+  your "ہاں" before sending). Anything it has no rule for is answered by the AI in Urdu.
+- Wake word in Urdu: "جارویس". Stop: "رکو" / "بس". Exit: "جارویس بند ہو جاؤ" / "خدا حافظ".
+- Needs internet for the Urdu voice (Microsoft Edge neural voices) and a Groq key for good Urdu recognition and for
+  translating replies that have no ready-made Urdu phrase.
+
+**News.** Free Google News feeds, no key. Say (or in Urdu: "پاکستان کی تازہ خبریں"):
+- "what are the breaking news of Pakistan" / "news from India" / "headlines of Iran" - any country
+- "tell me the breaking news from the global world" / "world news" - global headlines
+- "geopolitics news" / "latest geopolitical update on Iran" - geopolitics, optionally for one country
+- "top 3 business headlines", "sports news", "technology news", "news about bitcoin"
+- "daily news briefing" - home country + world + geopolitics. Set `JARVIS_DAILY_NEWS=08:00` and he reads it by himself every day.
+- Add "in Urdu" to hear any of them in Urdu.

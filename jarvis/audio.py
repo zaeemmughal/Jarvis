@@ -15,8 +15,9 @@ import queue
 import threading
 import time
 
+from . import urdu
 from . import net
-from .config import Config, ROOT
+from .config import Config, ROOT, APP_DIR
 
 log = logging.getLogger("jarvis.audio")
 
@@ -122,8 +123,8 @@ class Listener(threading.Thread):
     def _load_vosk(self):
         if not vosk:
             return
-        for name in ("model", "vosk-model-small-en-us-0.15"):
-            path = os.path.join(ROOT, name)
+        for name, base in [(n, b) for n in ("model", "vosk-model-small-en-us-0.15") for b in (ROOT, APP_DIR)]:
+            path = os.path.join(base, name)
             if os.path.isdir(path):
                 try:
                     vosk.SetLogLevel(-1)
@@ -135,6 +136,9 @@ class Listener(threading.Thread):
     _HALLUCINATIONS = {"you", "thank you", "thanks", "thank you.", "thanks for watching", "thanks for watching!",
                        "bye", "bye.", ".", "okay", "ok", "uh", "um", "hmm", "mm", "the end"}
 
+    def _stt_lang(self) -> str:
+        return "ur-PK" if urdu.is_urdu() else (self.cfg.language or "en").lower()
+
     def _groq_stt(self, audio) -> str | None:
         """Groq-hosted Whisper: far more accurate than the free Google recogniser, esp. with accents and names.
         Returns the text, "" if nothing was said, or None when it could not be used (caller falls back to Google)."""
@@ -145,9 +149,10 @@ class Listener(threading.Thread):
         try:
             data = net.post_multipart(
                 "https://api.groq.com/openai/v1/audio/transcriptions",
-                {"model": cfg.stt_model, "language": (cfg.language or "en").split("-")[0].lower(),
+                {"model": "whisper-large-v3" if (urdu.is_urdu() and cfg.stt_model == "whisper-large-v3-turbo") else cfg.stt_model,
+                 "language": self._stt_lang().split("-")[0],
                  "response_format": "json", "temperature": "0",
-                 "prompt": "Jarvis."},
+                 "prompt": "جارویس۔ یوٹیوب کھولو، واٹس ایپ، خبریں۔" if urdu.is_urdu() else "Jarvis."},
                 {"file": ("speech.wav", wav, "audio/wav")}, 20, {"Authorization": "Bearer " + cfg.groq_key})
         except net.NetError as e:
             self._groq_off = time.time() + (600 if e.status in (401, 403) else 45 if e.status == 429 else 20)
@@ -167,7 +172,7 @@ class Listener(threading.Thread):
         if not (self.cfg.force_offline and self._vosk_model):
             try:
                 self.stt_name = "google"
-                return rec.recognize_google(audio, language=self.cfg.language)
+                return rec.recognize_google(audio, language=self._stt_lang())
             except sr.UnknownValueError:
                 return ""
             except sr.RequestError:

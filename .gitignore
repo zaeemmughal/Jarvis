@@ -7,3 +7,15 @@ __pycache__/
 venv/
 model/
 vosk-model-*/
+
+build/
+dist/
+installer/Output/
+installer/default.env
+.buildvenv/
+.env
+data/
+logs/
+reports/
+__pycache__/
+.pytest_cache/

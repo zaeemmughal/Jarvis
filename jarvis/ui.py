@@ -8,6 +8,7 @@ import time
 import tkinter as tk
 from collections import deque
 
+from . import urdu
 from .face import eye_pts
 
 BG, PANEL = "#05080f", "#070f1b"
@@ -118,6 +119,7 @@ class HUD:
         self.stop_btn = self._btn(bar, "STOP", self.app.stop_speaking, AMBER)
         self.wake_btn = self._btn(bar, "WAKE: ON", self.app.toggle_wake, GREEN)
         self.mic_btn = self._btn(bar, "MIC: ON", self.app.toggle_mic, GREEN)
+        self.lang_btn = self._btn(bar, "LANG: EN", self.app.toggle_language, CYAN)
         self.c.bind("<Button-1>", lambda e: self.entry.focus_set())
 
     def _build_scene(self):
@@ -187,6 +189,9 @@ class HUD:
                     self.heard, self.heard_color = ev[1], (MUTE if ev[2] else SOFT)
                 elif kind == "clear":
                     self.clear_log()
+                elif kind == "panel":                       # report / briefing reading panel (jarvis/panel.py)
+                    from . import panel
+                    panel.show(self.root, ev[1], ev[2])
                 elif kind == "fullscreen":
                     self.set_fullscreen(ev[1])
                 elif kind == "flash":
@@ -406,8 +411,11 @@ class HUD:
         c.coords(self.t_reply, cx0, H * 0.775)
         self._set(self.t_clock, text=time.strftime("%I:%M:%S %p"))
         self._set(self.t_state, text=label, fill=col)
-        self._set(self.t_heard, text=self.heard, fill=self.heard_color)
-        self._set(self.t_reply, text=self.reply_full[:int(self.reply_shown)])
+        ur_font = lambda size, bold=True: ("Segoe UI", size, "bold") if bold else ("Segoe UI", size)
+        self._set(self.t_heard, text=self.heard, fill=self.heard_color,
+                  font=ur_font(12, False) if urdu.has_urdu(self.heard) else (MONO[0], 12))
+        self._set(self.t_reply, text=self.reply_full[:int(self.reply_shown)],
+                  font=ur_font(16) if urdu.has_urdu(self.reply_full) else (MONO[0], 15, "bold"))
         self._set(self.t_title, fill=col)
 
         if self.left and now - self.stats_at > 1.0:             # side panel
@@ -433,6 +441,7 @@ class HUD:
         mic_on, wake_on = app.mic_on, app.wake_on
         self._setw(self.mic_btn, text="MIC: ON" if mic_on else "MIC: OFF", fg=GREEN if mic_on else RED)
         self._setw(self.wake_btn, text="WAKE: ON" if wake_on else "WAKE: OFF", fg=GREEN if wake_on else MUTE)
+        self._setw(self.lang_btn, text="LANG: URDU" if urdu.is_urdu() else "LANG: EN")
 
 
 def m_ss(sec: float) -> str:

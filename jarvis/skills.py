@@ -21,7 +21,7 @@ import urllib.parse
 import webbrowser
 
 from . import dialog as dlg
-from . import browser, net, pcinfo, services, winctl
+from . import browser, net, pcinfo, services, urdu, winctl
 from .dialog import SEARCH_URLS, canon_site, search_url
 
 IS_WIN = os.name == "nt"
@@ -151,10 +151,14 @@ _RAW_TAIL = re.compile(r"[\s,.:;!?-]*\b(?:%s)\W*$" % _WAKE, re.I)
 def strip_wake_raw(text: str) -> str:
     """Remove the wake word but keep the user's capitalisation and punctuation (for the AI)."""
     t = _RAW_TAIL.sub("", _RAW_HEAD.sub("", text.strip())).strip()
+    if urdu.has_urdu(t):
+        t = urdu.strip_wake(t)
     return t or text.strip()
 
 
 def has_wake_word(text: str) -> bool:
+    if urdu.has_urdu(text) and urdu.has_wake(text):
+        return True
     toks = re.findall(r"[a-z']+", text.lower().replace("\u2019", "'"))
     for i, tok in enumerate(toks):
         if tok in WAKE_WORDS:
@@ -523,6 +527,10 @@ def control_intent(t: str, addressed: bool = True):
 
 def control_of(text: str, addressed: bool | None = None):
     """Same as control_intent() but starting from the raw heard sentence."""
+    if urdu.has_urdu(text):
+        c = urdu.control(text)
+        if c:
+            return c
     return control_intent(strip_wake(normalize(text)), has_wake_word(text) if addressed is None else addressed)
 
 
@@ -1363,9 +1371,33 @@ def _route_one(ctx, t: str, depth: int = 0):
     return None
 
 
+def _route_urdu(ctx, text: str):
+    """An Urdu sentence: turn it into the English command the skills know, or let the AI answer it in Urdu."""
+    d = getattr(ctx, "dialog", None)
+    llm = bool(getattr(getattr(ctx, "brain", None), "llm_ready", False))
+    body = strip_wake_raw(text)
+    if not urdu.has_urdu(body) and not urdu._clean(body):
+        return "جی؟"
+    cmd = urdu.to_command(body, pending=bool(d and getattr(d, "pending", None)), llm=llm)
+    if cmd is None and llm and urdu.looks_like_command(body):
+        plan = ctx.brain.plan(body, d.describe() if d else "")
+        if plan and plan.get("kind") == "command" and plan.get("command"):
+            cmd = plan["command"]
+        elif plan and plan.get("kind") != "command":
+            return None
+    if cmd is None:
+        return None                                      # ordinary question / chat: the AI brain answers in Urdu
+    cmd = normalize(cmd)
+    ctx.hud_post("log", "sys", "understood as: " + cmd)
+    return _route_one(ctx, strip_filler(cmd)[0] or cmd)
+
+
 def route(ctx, text: str):
     """Return the reply for a local skill, or None when the AI brain should answer."""
     ctx.addressed = has_wake_word(text)
+    ctx.raw_text = text                                  # what was really said (capitals / punctuation) - used when typing messages
+    if urdu.has_urdu(text):
+        return _route_urdu(ctx, text)
     t = strip_wake(normalize(text))
     if not t:
         return random.choice(["Yes?", "At your service.", "I'm listening."])
@@ -1383,3 +1415,7 @@ def route(ctx, text: str):
         if i + 1 < len(parts) and COMPOUND_DELAY and parts[i + 1].split()[0] in ("type", "press", "dictate", "hit"):
             time.sleep(COMPOUND_DELAY)
     return " ".join(x for x in replies if x)
+
+
+from . import extras  # noqa: E402,F401  - WhatsApp / YouTube / helper skills; registers itself in front of the list above
+from . import features  # noqa: E402,F401  - briefing, speed, reports, agents, modes ...; registers itself in front of the list above

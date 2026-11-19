@@ -25,6 +25,7 @@ from concurrent.futures import TimeoutError as FutureTimeout
 
 from .brain import clean_for_speech
 from .config import Config
+from . import urdu
 
 log = logging.getLogger("jarvis.tts")
 IS_WIN = os.name == "nt"
@@ -40,7 +41,7 @@ def chunk_text(text: str, limit: int = 200, target: int = 70) -> list[str]:
     """Cut text into clips of roughly `target`..`limit` characters on sentence ends. Short clips mean the first one is
     ready (and heard) quickly; a single huge sentence is broken at commas."""
     pieces: list[str] = []
-    for s in re.split(r"(?<=[.!?])\s+", clean_for_speech(text)):
+    for s in re.split(r"(?<=[.!?\u06d4\u061f])\s+", clean_for_speech(text)):
         while len(s) > limit:
             cut = max(s.rfind(", ", 0, limit), s.rfind("; ", 0, limit), s.rfind(" ", 0, limit))
             if cut < 40:
@@ -227,6 +228,13 @@ class Speaker:
             while time.time() < end and not self._stop.is_set():
                 time.sleep(0.05)
             return
+        if urdu.urdu_ratio(text) >= 0.3:             # the offline system voice cannot read Urdu: show the text, stay silent
+            secs = min(8.0, 0.05 * len(text) + 0.6)
+            self._announce(text, secs)
+            end = time.time() + secs
+            while time.time() < end and not self._stop.is_set():
+                time.sleep(0.05)
+            return
         if self._system_ok():
             self._play_system(text)
 
@@ -237,8 +245,10 @@ class Speaker:
             fd, path = tempfile.mkstemp(suffix=".mp3", prefix="jarvis_")
             os.close(fd)
             try:
+                voice, rate = urdu.voice_for(text, self.cfg.tts_voice)
+
                 async def go():
-                    await edge_tts.Communicate(text, self.cfg.tts_voice, rate=self.cfg.tts_rate).save(path)
+                    await edge_tts.Communicate(text, voice, rate=rate or self.cfg.tts_rate).save(path)
                 asyncio.run(go())
                 if os.path.getsize(path) >= 200:
                     return path

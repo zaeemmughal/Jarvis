@@ -229,7 +229,7 @@ class ScreenAwareness(unittest.TestCase):
         self.assertIsNone(dlg.infer_focus("J.A.R.V.I.S", "python.exe"))
 
     def test_infer_focus(self):
-        f = dlg.infer_focus("Inbox (3) - zaeem@gmail.com - Gmail - Google Chrome", "chrome.exe")
+        f = dlg.infer_focus("Inbox (3) - hasnat@gmail.com - Gmail - Google Chrome", "chrome.exe")
         self.assertEqual((f.kind, f.key), ("site", "gmail"))
         self.assertEqual(dlg.infer_focus("Untitled - Notepad", "notepad.exe").key, "notepad")
         self.assertEqual(dlg.infer_focus("New Tab - Google Chrome", "chrome.exe").key, "browser")

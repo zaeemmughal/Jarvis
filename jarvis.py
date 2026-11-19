@@ -21,12 +21,15 @@ def autostart(mode: str) -> None:
         print("--autostart is only available on Windows.")
         return
     import winreg
-    here = os.path.abspath(__file__)
-    exe = sys.executable
-    pyw = os.path.join(os.path.dirname(exe), "pythonw.exe")          # pythonw = no console window
-    if os.path.isfile(pyw):
-        exe = pyw
-    cmd = '"%s" "%s" --background' % (exe, here)
+    if getattr(sys, "frozen", False):                                # installed .exe: run itself
+        cmd = '"%s" --background' % sys.executable
+    else:
+        here = os.path.abspath(__file__)
+        exe = sys.executable
+        pyw = os.path.join(os.path.dirname(exe), "pythonw.exe")      # pythonw = no console window
+        if os.path.isfile(pyw):
+            exe = pyw
+        cmd = '"%s" "%s" --background' % (exe, here)
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
         if mode == "on":
             winreg.SetValueEx(key, "Jarvis", 0, winreg.REG_SZ, cmd)
